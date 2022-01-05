@@ -1,0 +1,13 @@
+[Unit]
+Description=Seanatic Gateway On Board service
+
+[Service]
+ExecStart=/usr/bin/seanatic-gateway --start
+ExecStop=/usr/bin/seanatic-gateway --stop
+RemainAfterExit=true
+Type=oneshot
+StandardOutput=journal
+
+[Install]
+WantedBy=multi-user.target
+

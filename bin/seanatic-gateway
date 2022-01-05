@@ -1,0 +1,143 @@
+#!/usr/bin/bash
+
+###################
+# UNSET VARIABLES #
+###################                
+
+unset START STOP
+unset NO_SECURITY
+unset PARSED_ARGUMENTS
+
+unset AFM_DATA_DIR 
+unset RP_USER
+unset AFM_CMD
+
+unset BINDING_REDIS
+unset BINDING_MODBUS
+unset BINDING_SIG_COMPOSER
+
+#################
+# SET VARIABLES #
+#################
+
+AFM_DATA_DIR=/var/local/lib/afm/applications
+RP_USER=rp-owner
+AFM_CMD="runuser -u ${RP_USER} -- afm-util"
+
+BINDING_REDIS=redis-tsdb-binding
+BINDING_MODBUS=modbus-binding
+BINDING_SIG_COMPOSER=signal-composer-binding
+
+
+#################
+# HELP FUNCTION #
+#################
+
+# ---
+# Print Usage
+# ---
+function usage {
+    echo "$0 [ --start ][ --stop ][--no-security][ -h | --help ]
+    - start: Start all gateway services
+    - stop: Stop all services
+    - no-security (optional): Use 'afb-binder' instead of 'afm-util'"
+    exit 2
+}
+
+###################
+# SETUP FUNCTIONS #
+###################
+
+# ---
+# Setup the gateway
+# Check if some systemd servies are running or not,
+# and launched them if needed
+# ---
+function setup_gateway {
+	[[ -f /var/log/redis/redis.log ]] || touch /var/log/redis/redis.log && chown redis:redis /var/log/redis/redis.log
+	if (systemctl is-active --quiet redis.service); then
+		echo "Service redis is running"
+	else
+		echo "Run and Enable service redis"
+		systemctl enable redis
+		systemctl start redis
+	fi
+}
+
+######################
+# SERVICES FUNCTIONS #
+######################
+
+# ---
+# Start all services
+# ---
+function start_bindings {
+	echo "Start gateway"
+	if [[ ${NO_SECURITY} -eq 1 ]]; then
+		# redis-tsdb-binding
+		afb-binder -vvDn redis -p 9999 -w ${AFM_DATA_DIR}/${BINDING_REDIS} -b lib/redis-binding.so --ws-server unix:@redis
+		sleep 1
+
+		# modbus-binding
+		afb-binder -vvDn modbus -p 9998 -w ${AFM_DATA_DIR}/${BINDING_MODBUS} -b lib/afb-modbus.so --ws-server unix:@modbus
+		sleep 1
+	else
+		# redis-tsdb-binding
+		echo "Launch ${BINDING_REDIS}"
+		${AFM_CMD} start ${BINDING_REDIS} > /dev/null || { stop_bindings ; exit 1 ; }
+
+		# modbus-binding
+		echo "Launch ${BINDING_MODBUS}"
+		${AFM_CMD} start ${BINDING_MODBUS} > /dev/null || { stop_bindings ; exit 1 ; }
+	fi
+}
+
+# ---
+# Stop all running services
+# ---
+function stop_bindings {
+	echo "Stop gateway"
+	if [[ ${NO_SECURITY} -eq 1 ]]; then
+		killall -q redis modbus
+	else
+		PS=$(${AFM_CMD} ps -a)
+		for ((i = 0 ; i < $(echo ${PS} | jq length) ; i++ )); do
+			# redis-tsdb-binding
+			[[ '"'${BINDING_REDIS}'"' == $(echo ${PS} | jq .[${i}].id) ]] && { echo "Stop ${BINDING_REDIS}" ; ${AFM_CMD} kill $(echo ${PS} | jq .[${i}].runid) > /dev/null ; continue ; }
+
+			# modbus-binding
+			[[ '"'${BINDING_MODBUS}'"' == $(echo ${PS} | jq .[${i}].id) ]] && { echo "Stop ${BINDING_MODBUS}" ; ${AFM_CMD} kill $(echo ${PS} | jq .[${i}].runid) > /dev/null ; continue ; }
+		done
+	fi
+}
+
+###############
+# ENTRY POINT #
+###############
+
+[[ -z $@ ]] && usage
+PARSED_ARGUMENTS=$(getopt -a -n $0 -o l:,h --long start,stop,no-security,help -- "$@")
+[[ $? != "0" ]] && usage
+eval set -- "${PARSED_ARGUMENTS}"
+
+while :
+do
+	case "$1" in
+		--start)		START=1   		; shift 1 ;;
+		--stop)			STOP=1    		; shift 1 ;;
+		--no-security)	NO_SECURITY=1	; shift 1 ;;
+		-h | --help)	usage     		; shift   ;;
+		--)				shift     		; break   ;;
+		*)				usage     		; shift   ;;
+	esac
+done
+
+[[ -z ${START} ]] && [[ -z ${STOP} ]] && usage
+if [[ -z $STOP ]]; then
+	setup_gateway
+	start_bindings
+else
+	stop_bindings
+fi
+
+exit 0
