@@ -1,5 +1,23 @@
 #!/usr/bin/bash
 
+###########################################################################
+# Copyright 2022 IoT.bzh
+#
+# author: Lefebvre Valentin <valentin.lefebvre@iot.bzh>
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+###########################################################################
+
 ###################
 # UNSET VARIABLES #
 ###################                
@@ -15,6 +33,7 @@ unset AFM_CMD
 unset BINDING_REDIS
 unset BINDING_MODBUS
 unset BINDING_SIG_COMPOSER
+unset BINDING_CLOUD_PUB
 
 #################
 # SET VARIABLES #
@@ -27,7 +46,7 @@ AFM_CMD="runuser -u ${RP_USER} -- afm-util"
 BINDING_REDIS=redis-tsdb-binding
 BINDING_MODBUS=modbus-binding
 BINDING_SIG_COMPOSER=signal-composer-binding
-
+BINDING_CLOUD_PUB=cloud-publication-binding
 
 #################
 # HELP FUNCTION #
@@ -81,6 +100,14 @@ function start_bindings {
 		# modbus-binding
 		afb-binder -vvDn modbus -p 9998 -w ${AFM_DATA_DIR}/${BINDING_MODBUS} -b lib/afb-modbus.so --ws-server unix:@modbus
 		sleep 1
+
+		# signal-composer-binding
+		afb-binder -vvDn afb-signal-composer -p 9997 -w ${AFM_DATA_DIR}/${BINDING_SIG_COMPOSER} -b lib/afb-signal-composer-binding.so --ws-client unix:@redis --ws-client unix:@modbus --ws-server unix:@signal-composer
+		sleep 1
+
+		# cloud-publication-binding
+		afb-binder -vvDn afb-cloud-pub -p 9996 -w ${AFM_DATA_DIR}/${BINDING_CLOUD_PUB} -b lib/cloud-publication.so --ws-client unix:@redis --ws-client unix:@redis-cloud --ws-server unix:@cloud-pub
+		sleep 1
 	else
 		# redis-tsdb-binding
 		echo "Launch ${BINDING_REDIS}"
@@ -89,6 +116,14 @@ function start_bindings {
 		# modbus-binding
 		echo "Launch ${BINDING_MODBUS}"
 		${AFM_CMD} start ${BINDING_MODBUS} > /dev/null || { stop_bindings ; exit 1 ; }
+
+		# signal-composer-binding
+		echo "Launch ${BINDING_SIG_COMPOSER}"
+		${AFM_CMD} start ${BINDING_SIG_COMPOSER} > /dev/null || { stop_bindings ; exit 1 ; }
+
+		# cloud-publication-binding
+		echo "Launch ${BINDING_CLOUD_PUB}"
+		${AFM_CMD} start ${BINDING_CLOUD_PUB} > /dev/null || { stop_bindings ; exit 1 ; }
 	fi
 }
 
@@ -98,7 +133,7 @@ function start_bindings {
 function stop_bindings {
 	echo "Stop gateway"
 	if [[ ${NO_SECURITY} -eq 1 ]]; then
-		killall -q redis modbus
+		killall -q redis modbus afb-signal-composer
 	else
 		PS=$(${AFM_CMD} ps -a)
 		for ((i = 0 ; i < $(echo ${PS} | jq length) ; i++ )); do
@@ -107,6 +142,12 @@ function stop_bindings {
 
 			# modbus-binding
 			[[ '"'${BINDING_MODBUS}'"' == $(echo ${PS} | jq .[${i}].id) ]] && { echo "Stop ${BINDING_MODBUS}" ; ${AFM_CMD} kill $(echo ${PS} | jq .[${i}].runid) > /dev/null ; continue ; }
+
+			# signal-composer-binding
+			[[ '"'${BINDING_SIG_COMPOSER}'"' == $(echo ${PS} | jq .[${i}].id) ]] && { echo "Stop ${BINDING_SIG_COMPOSER}" ; ${AFM_CMD} kill $(echo ${PS} | jq .[${i}].runid) > /dev/null ; continue ; }
+
+			# cloud-publication-binding
+			[[ '"'${BINDING_CLOUD_PUB}'"' == $(echo ${PS} | jq .[${i}].id) ]] && { echo "Stop ${BINDING_CLOUD_PUB}" ; ${AFM_CMD} kill $(echo ${PS} | jq .[${i}].runid) > /dev/null ; continue ; }
 		done
 	fi
 }
