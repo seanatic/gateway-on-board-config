@@ -94,19 +94,25 @@ function start_bindings {
 	echo "Start gateway"
 	if [[ ${NO_SECURITY} -eq 1 ]]; then
 		# redis-tsdb-binding
-		afb-binder -vvDn redis -p 9999 -w ${AFM_DATA_DIR}/${BINDING_REDIS} -b lib/redis-binding.so --ws-server unix:@redis
+		afb-binder -vvDn redis -p 9999 -w ${AFM_DATA_DIR}/${BINDING_REDIS}  \
+-b lib/redis-binding.so --ws-server unix:@redis
 		sleep 1
 
 		# modbus-binding
-		afb-binder -vvDn modbus -p 9998 -w ${AFM_DATA_DIR}/${BINDING_MODBUS} -b lib/afb-modbus.so --ws-server unix:@modbus
+		afb-binder -vvDn modbus -p 9998 -w ${AFM_DATA_DIR}/${BINDING_MODBUS} \
+-b lib/afb-modbus.so --ws-server unix:@modbus
 		sleep 1
 
 		# signal-composer-binding
-		afb-binder -vvDn afb-signal-composer -p 9997 -w ${AFM_DATA_DIR}/${BINDING_SIG_COMPOSER} -b lib/afb-signal-composer-binding.so --ws-client unix:@redis --ws-client unix:@modbus --ws-server unix:@signal-composer
+		afb-binder -vvDn afb-signal-composer -p 9997 -w ${AFM_DATA_DIR}/${BINDING_SIG_COMPOSER} \
+-b lib/afb-signal-composer-binding.so \
+--ws-client unix:@redis --ws-client unix:@modbus --ws-server unix:@signal-composer
 		sleep 1
 
 		# cloud-publication-binding
-		afb-binder -vvDn afb-cloud-pub -p 9996 -w ${AFM_DATA_DIR}/${BINDING_CLOUD_PUB} -b lib/cloud-publication.so --ws-client unix:@redis --ws-client unix:@redis-cloud --ws-server unix:@cloud-pub
+		afb-binder -vvDn afb-cloud-pub -p 9996 -w ${AFM_DATA_DIR}/${BINDING_CLOUD_PUB} \
+-b lib/cloud-publication.so \
+--ws-client unix:@redis --ws-client unix:@redis-cloud --ws-server unix:@cloud-pub
 		sleep 1
 	else
 		# redis-tsdb-binding
