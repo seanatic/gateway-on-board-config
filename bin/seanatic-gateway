@@ -47,6 +47,7 @@ BINDING_REDIS=redis-tsdb-binding
 BINDING_MODBUS=modbus-binding
 BINDING_SIG_COMPOSER=signal-composer-binding
 BINDING_CLOUD_PUB=cloud-publication-binding
+BINDING_CLOUD_PUB_PORT=9996
 
 #################
 # HELP FUNCTION #
@@ -110,9 +111,13 @@ function start_bindings {
 		sleep 1
 
 		# cloud-publication-binding
-		afb-binder -vvDn afb-cloud-pub -p 9996 -w ${AFM_DATA_DIR}/${BINDING_CLOUD_PUB} \
+		afb-binder -vvDn afb-cloud-pub -p ${BINDING_CLOUD_PUB_PORT} -w ${AFM_DATA_DIR}/${BINDING_CLOUD_PUB} \
 -b lib/cloud-publication.so \
 --ws-client unix:@redis --ws-client unix:@redis-cloud --ws-server unix:@cloud-pub
+		sleep 1
+
+		# Start the publication
+		afb-client --human 'localhost:9996/api' cloud-pub start &
 		sleep 1
 	else
 		# redis-tsdb-binding
@@ -130,7 +135,17 @@ function start_bindings {
 		# cloud-publication-binding
 		echo "Launch ${BINDING_CLOUD_PUB}"
 		${AFM_CMD} start ${BINDING_CLOUD_PUB} > /dev/null || { stop_bindings ; exit 1 ; }
+
+		# Get the cloud-publication port
+		LIST=$(${AFM_CMD} list -a)
+		for ((i = 0 ; i < $(echo ${LIST} | jq length) ; i++ )); do
+			[[ '"'${BINDING_CLOUD_PUB}'"' == $(echo ${LIST} | jq .[${i}].id) ]] && { BINDING_CLOUD_PUB_PORT=$(echo ${LIST} | jq .[${i}].\"http-port\") ; echo "Port of ${BINDING_CLOUD_PUB} = ${BINDING_CLOUD_PUB_PORT}" ; continue ; }
+		done
 	fi
+
+	# Start cloud publication
+	afb-client --human "localhost:${BINDING_CLOUD_PUB_PORT}/api " cloud-pub start
+
 }
 
 # ---
@@ -141,6 +156,14 @@ function stop_bindings {
 	if [[ ${NO_SECURITY} -eq 1 ]]; then
 		killall -q redis modbus afb-signal-composer
 	else
+		# Get the cloud-publication port
+		LIST=$(${AFM_CMD} list -a)
+		for ((i = 0 ; i < $(echo ${LIST} | jq length) ; i++ )); do
+			[[ '"'${BINDING_CLOUD_PUB}'"' == $(echo ${LIST} | jq .[${i}].id) ]] && { BINDING_CLOUD_PUB_PORT=$(echo ${LIST} | jq .[${i}].\"http-port\") ; echo "Port of ${BINDING_CLOUD_PUB} = ${BINDING_CLOUD_PUB_PORT}" ; continue ; }
+		done
+		# afb-client
+		afb-client --human "localhost:${BINDING_CLOUD_PUB_PORT}/api" cloud-pub stop
+
 		PS=$(${AFM_CMD} ps -a)
 		for ((i = 0 ; i < $(echo ${PS} | jq length) ; i++ )); do
 			# redis-tsdb-binding
