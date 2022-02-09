@@ -82,6 +82,8 @@ function setup_gateway {
 		systemctl enable redis
 		systemctl start redis
 	fi
+
+	[[ $(cat /etc/hosts | grep cloud-publication-container) ]] || echo "10.50.0.5 cloud-publication-container" >> /etc/hosts
 }
 
 ######################
@@ -113,7 +115,7 @@ function start_bindings {
 		# cloud-publication-binding
 		afb-binder -vvDn afb-cloud-pub -p ${BINDING_CLOUD_PUB_PORT} -w ${AFM_DATA_DIR}/${BINDING_CLOUD_PUB} \
 -b lib/cloud-publication.so \
---ws-client unix:@redis --ws-client unix:@redis-cloud --ws-server unix:@cloud-pub
+--ws-client unix:@redis --ws-client tcp:cloud-publication-container:21212/redis-cloud --ws-server unix:@cloud-pub
 		sleep 1
 
 		# Start the publication
@@ -154,7 +156,7 @@ function start_bindings {
 function stop_bindings {
 	echo "Stop gateway"
 	if [[ ${NO_SECURITY} -eq 1 ]]; then
-		killall -q redis modbus afb-signal-composer
+		killall -q redis modbus afb-signal-composer afb-cloud-pub
 	else
 		# Get the cloud-publication port
 		LIST=$(${AFM_CMD} list -a)
