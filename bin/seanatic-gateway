@@ -118,9 +118,6 @@ function start_bindings {
 --ws-client unix:@redis --ws-client tcp:cloud-publication-container:21212/redis-cloud --ws-server unix:@cloud-pub
 		sleep 1
 
-		# Start the publication
-		afb-client --human 'localhost:9996/api' cloud-pub start &
-		sleep 1
 	else
 		# redis-tsdb-binding
 		echo "Launch ${BINDING_REDIS}"
