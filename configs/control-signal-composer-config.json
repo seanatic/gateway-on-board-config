@@ -1,0 +1,51 @@
+{
+	"$schema": "http://iot.bzh/download/public/schema/json/signal-composer-schema.json",
+	"metadata": {
+		"uid": "signal-composer-plugin-seanatic-gateway",
+		"version": "0.0",
+		"api": "signal-composer",
+		"info": "A signal composer plugin meant to catch data from modbus and send it to redis database",
+		"require": [
+			"modbus",
+			"redis"
+		]
+	},
+	"plugins": {
+		"uid":"signal-composer-plugin-seanatic-gateway",
+		"info":"A signal composer plugin meant to catch data from modbus and send it to redis database",
+		"libs":"signal-composer-plugin-seanatic-gateway.ctlso"
+	},
+	"sources": [
+        {
+            "uid":"modbus-binding-ana",
+            "api":"modbus",
+			"info":"service which catch analogic data from automate through modbus connection",
+            "getSignals": {
+                "action": "api://modbus#1510SP/ana",
+                "args": {"action": "SUBSCRIBE"}
+            }
+        },
+        {
+            "uid":"modbus-binding-dig",
+            "api":"modbus",
+			"info":"service which catch digital data from automate through modbus connection",
+            "getSignals": {
+                "action": "api://modbus#1510SP/dig",
+                "args": {"action": "SUBSCRIBE"}
+            }
+        }
+	],
+	"signals": [
+		{
+			"uid":"ET200SP_ANA",
+			"event": "modbus/ana",
+			"unit": "m/s",
+			"onReceived": {"action":"plugin://signal-composer-plugin-seanatic-gateway#catch_event_cb"}
+		},
+		{
+			"uid":"ET200SP_DIG",
+			"event": "modbus/dig",
+			"onReceived": {"action":"plugin://signal-composer-plugin-seanatic-gateway#catch_event_cb"}
+		}
+	]
+}
